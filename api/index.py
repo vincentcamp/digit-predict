@@ -5,33 +5,40 @@ import os
 import resource
 import traceback
 
-# Global declarations
-global W1, b1, W2, b2
+# Global variable declarations
+W1 = None
+b1 = None
+W2 = None
+b2 = None
 
-# Load model parameters
-current_dir = os.path.dirname(os.path.realpath(__file__))
-model_path = os.path.join(current_dir, 'digit_recognizer_model.json')
+def load_model_parameters():
+    global W1, b1, W2, b2
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    model_path = os.path.join(current_dir, 'digit_recognizer_model.json')
 
-try:
-    with open(model_path, 'r') as f:
-        model_params = json.load(f)
-    print("Model parameters loaded successfully", file=sys.stderr)
-    W1 = np.array(model_params['W1'])
-    b1 = np.array(model_params['b1'])
-    W2 = np.array(model_params['W2'])
-    b2 = np.array(model_params['b2'])
-except FileNotFoundError:
-    print(f"Error: Model file not found at {model_path}", file=sys.stderr)
-    raise
-except json.JSONDecodeError:
-    print(f"Error: Invalid JSON format in {model_path}", file=sys.stderr)
-    raise
-except KeyError as e:
-    print(f"Error: Missing key in model parameters: {str(e)}", file=sys.stderr)
-    raise
-except Exception as e:
-    print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
-    raise
+    try:
+        with open(model_path, 'r') as f:
+            model_params = json.load(f)
+        print("Model parameters loaded successfully", file=sys.stderr)
+        W1 = np.array(model_params['W1'])
+        b1 = np.array(model_params['b1'])
+        W2 = np.array(model_params['W2'])
+        b2 = np.array(model_params['b2'])
+    except FileNotFoundError:
+        print(f"Error: Model file not found at {model_path}", file=sys.stderr)
+        raise
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON format in {model_path}", file=sys.stderr)
+        raise
+    except KeyError as e:
+        print(f"Error: Missing key in model parameters: {str(e)}", file=sys.stderr)
+        raise
+    except Exception as e:
+        print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
+        raise
+
+# Load model parameters at module initialization
+load_model_parameters()
 
 def ReLU(Z):
     return np.maximum(Z, 0)
@@ -85,6 +92,7 @@ def log_memory_usage():
         print(f"WARNING: Approaching memory limit. Usage: {memory_usage:.2f} MB / {memory_limit} MB", file=sys.stderr)
 
 def handler(event, context):
+    global W1, b1, W2, b2
     print("Received event:", json.dumps(event), file=sys.stderr)
     print("Current working directory:", os.getcwd(), file=sys.stderr)
     print("Contents of current directory:", os.listdir('.'), file=sys.stderr)
@@ -116,7 +124,6 @@ def handler(event, context):
 
             Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
             dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, image_data, np.array([label]))
-            global W1, b1, W2, b2
             W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, 0.1)  # Adjust learning rate as needed
 
             response = {
