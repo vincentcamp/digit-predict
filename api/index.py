@@ -97,10 +97,12 @@ class handler(BaseHTTPRequestHandler):
 
         else:
             self.send_response(404)
+            self.send_header('Content-type', 'application/json')
             self.end_headers()
+            self.wfile.write(json.dumps({'error': 'Not Found'}).encode('utf-8'))
 
     def do_GET(self):
         self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
+        self.send_header('Content-type', 'application/json')
         self.end_headers()
-        self.wfile.write('Hello, World!'.encode('utf-8'))
+        self.wfile.write(json.dumps({'message': 'Hello, World!'}).encode('utf-8'))

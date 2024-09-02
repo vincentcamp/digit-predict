@@ -7,7 +7,7 @@ const App = () => {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     context.fillStyle = 'white';
     context.fillRect(0, 0, canvas.width, canvas.height);
   }, []);
