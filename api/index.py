@@ -2,14 +2,17 @@ from http.server import BaseHTTPRequestHandler
 import json
 import numpy as np
 import sys
+import os
 
-# Load the model parameters
+current_dir = os.path.dirname(os.path.realpath(__file__))
+model_path = os.path.join(current_dir, 'digit_recognizer_model.json')
+
 try:
-    with open('./digit_recognizer_model.json', 'r') as f:
+    with open(model_path, 'r') as f:
         model_params = json.load(f)
-    print("Model parameters loaded successfully", file=sys.stderr)
+    print("Model parameters loaded successfully")
 except Exception as e:
-    print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
+    print(f"Error loading model parameters: {str(e)}")
 
 W1 = np.array(model_params['W1'])
 b1 = np.array(model_params['b1'])

@@ -47,7 +47,12 @@ const App = () => {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d', { willReadFrequently: true });
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    return Array.from(imageData.data).filter((_, i) => i % 4 === 0);
+    const grayscaleData = new Array(canvas.width * canvas.height);
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+      grayscaleData[i/4] = avg;
+    }
+    return grayscaleData;
   };
 
   const handlePredict = async () => {
