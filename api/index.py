@@ -3,6 +3,7 @@ import json
 import numpy as np
 import sys
 import os
+import resource
 import traceback
 
 # Load model parameters
@@ -65,9 +66,7 @@ def update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha):
     return W1, b1, W2, b2
 
 def log_memory_usage():
-    process = psutil.Process(os.getpid())
-    memory_info = process.memory_info()
-    memory_usage = memory_info.rss / 1024 / 1024  # Convert to MB
+    memory_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024  # Convert to MB
     print(f"Current memory usage: {memory_usage:.2f} MB", file=sys.stderr)
     
     # Vercel's memory limit for serverless functions (adjust if needed)
