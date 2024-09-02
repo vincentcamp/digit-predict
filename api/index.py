@@ -1,10 +1,15 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import numpy as np
+import sys
 
 # Load the model parameters
-with open('./digit_recognizer_model.json', 'r') as f:
-    model_params = json.load(f)
+try:
+    with open('./digit_recognizer_model.json', 'r') as f:
+        model_params = json.load(f)
+    print("Model parameters loaded successfully", file=sys.stderr)
+except Exception as e:
+    print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
 
 W1 = np.array(model_params['W1'])
 b1 = np.array(model_params['b1'])
@@ -61,14 +66,22 @@ class handler(BaseHTTPRequestHandler):
         data = json.loads(post_data.decode('utf-8'))
 
         if self.path == '/api/predict':
-            image_data = np.array(data['image']).reshape(784, 1) / 255.0
-            _, _, _, A2 = forward_prop(W1, b1, W2, b2, image_data)
-            prediction = int(get_predictions(A2)[0])
+            try:
+                print("Received prediction request", file=sys.stderr)
+                image_data = np.array(data['image']).reshape(784, 1) / 255.0
+                _, _, _, A2 = forward_prop(W1, b1, W2, b2, image_data)
+                prediction = int(get_predictions(A2)[0])
+                print(f"Prediction: {prediction}", file=sys.stderr)
 
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({'prediction': prediction}).encode('utf-8'))
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = json.dumps({'prediction': prediction})
+                print(f"Sending response: {response}", file=sys.stderr)
+                self.wfile.write(response.encode('utf-8'))
+            except Exception as e:
+                print(f"Error in prediction: {str(e)}", file=sys.stderr)
+                self.send_error(500, "Internal Server Error")
 
         elif self.path == '/api/train':
             global W1, b1, W2, b2

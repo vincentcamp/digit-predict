@@ -53,19 +53,22 @@ const App = () => {
   const handlePredict = async () => {
     const imageData = getImageData();
     try {
+      console.log("Sending prediction request...");
       const response = await fetch('/api/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageData }),
       });
+      console.log("Received response:", response);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
+      console.log("Prediction result:", result);
       setPrediction(result.prediction);
     } catch (error) {
       console.error("Prediction error:", error);
-      alert("Error making prediction. Please try again.");
+      alert("Error making prediction. Please check the console for details.");
     }
   };
 
