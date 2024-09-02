@@ -3,16 +3,18 @@ import json
 import numpy as np
 import sys
 import os
+import traceback
 
+# Load model parameters
 current_dir = os.path.dirname(os.path.realpath(__file__))
 model_path = os.path.join(current_dir, 'digit_recognizer_model.json')
 
 try:
     with open(model_path, 'r') as f:
         model_params = json.load(f)
-    print("Model parameters loaded successfully")
+    print("Model parameters loaded successfully", file=sys.stderr)
 except Exception as e:
-    print(f"Error loading model parameters: {str(e)}")
+    print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
 
 W1 = np.array(model_params['W1'])
 b1 = np.array(model_params['b1'])
@@ -62,63 +64,69 @@ def update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha):
     b2 = b2 - alpha * db2    
     return W1, b1, W2, b2
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        data = json.loads(post_data.decode('utf-8'))
+def handler(event, context):
+    print("Received event:", json.dumps(event), file=sys.stderr)
+    print("Current working directory:", os.getcwd(), file=sys.stderr)
+    print("Contents of current directory:", os.listdir('.'), file=sys.stderr)
 
-        if self.path == '/api/predict':
-            try:
-                print("Received prediction request", file=sys.stderr)
-                image_data = np.array(data['image']).reshape(784, 1) / 255.0
-                _, _, _, A2 = forward_prop(W1, b1, W2, b2, image_data)
-                prediction = int(get_predictions(A2)[0])
-                print(f"Prediction: {prediction}", file=sys.stderr)
+    try:
+        # Parse request body
+        body = json.loads(event['body'])
+        image_data = np.array(body['image']).reshape(784, 1) / 255.0
+        print("Received image data shape:", image_data.shape, file=sys.stderr)
 
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                response = json.dumps({'prediction': prediction})
-                print(f"Sending response: {response}", file=sys.stderr)
-                self.wfile.write(response.encode('utf-8'))
-            except Exception as e:
-                print(f"Error in prediction: {str(e)}", file=sys.stderr)
-                self.send_error(500, "Internal Server Error")
+        print("Model parameters shapes:", W1.shape, b1.shape, W2.shape, b2.shape, file=sys.stderr)
 
-        elif self.path == '/api/train':
-            global W1, b1, W2, b2
-            image_data = np.array(data['image']).reshape(784, 1) / 255.0
-            label = data['label']
+        # Forward propagation
+        Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
+        print("Forward propagation completed", file=sys.stderr)
+        
+        # Get prediction
+        prediction = int(get_predictions(A2)[0])
+        print("Prediction:", prediction, file=sys.stderr)
+
+        # Prepare response
+        response = {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            },
+            'body': json.dumps({'prediction': prediction})
+        }
+        print("Sending response:", response, file=sys.stderr)
+        return response
+
+    except Exception as e:
+        print("Error occurred:", str(e), file=sys.stderr)
+        print("Error traceback:", traceback.format_exc(), file=sys.stderr)
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({'error': str(e)})
+        }
+
+# This part is for local testing and won't be used by Vercel
+if __name__ == "__main__":
+    class MockHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            event = {'body': post_data.decode('utf-8')}
+            response = handler(event, None)
             
-            # Perform one step of training
-            Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
-            dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, image_data, label)
-            W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, 0.1)
-            
-            # Save updated model
-            updated_model_params = {
-                'W1': W1.tolist(),
-                'b1': b1.tolist(),
-                'W2': W2.tolist(),
-                'b2': b2.tolist()
-            }
-            with open('./digit_recognizer_model.json', 'w') as f:
-                json.dump(updated_model_params, f)
-
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
+            self.send_response(response['statusCode'])
+            for key, value in response['headers'].items():
+                self.send_header(key, value)
             self.end_headers()
-            self.wfile.write(json.dumps({'status': 'Model updated successfully'}).encode('utf-8'))
+            self.wfile.write(response['body'].encode('utf-8'))
 
-        else:
-            self.send_response(404)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({'error': 'Not Found'}).encode('utf-8'))
-
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps({'message': 'Hello, World!'}).encode('utf-8'))
+    from http.server import HTTPServer
+    server = HTTPServer(('localhost', 8000), MockHandler)
+    print('Starting server on http://localhost:8000')
+    server.serve_forever()

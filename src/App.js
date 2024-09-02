@@ -57,22 +57,34 @@ const App = () => {
 
   const handlePredict = async () => {
     const imageData = getImageData();
+    console.log("Image data prepared:", imageData.length, "pixels");
+    
     try {
-      console.log("Sending prediction request...");
+      console.log("Sending prediction request to:", '/api/predict');
+      console.log("Request payload:", JSON.stringify({ image: imageData }));
+      
       const response = await fetch('/api/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageData }),
       });
+      
       console.log("Received response:", response);
+      console.log("Response status:", response.status);
+      console.log("Response headers:", JSON.stringify([...response.headers]));
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Error response body:", errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
+      
       const result = await response.json();
       console.log("Prediction result:", result);
       setPrediction(result.prediction);
     } catch (error) {
       console.error("Prediction error:", error);
+      console.error("Error stack:", error.stack);
       alert("Error making prediction. Please check the console for details.");
     }
   };
