@@ -1,3 +1,5 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import json
 import numpy as np
 import sys
@@ -16,19 +18,36 @@ def load_model_parameters():
     current_dir = os.path.dirname(os.path.realpath(__file__))
     model_path = os.path.join(current_dir, 'digit_recognizer_model.json')
 
+    print(f"Current directory: {current_dir}", file=sys.stderr)
+    print(f"Model path: {model_path}", file=sys.stderr)
+
     try:
-        print(f"Attempting to load model from: {model_path}", file=sys.stderr)
+        print("Attempting to load model parameters...", file=sys.stderr)
         with open(model_path, 'r') as f:
             model_params = json.load(f)
         print("Model parameters loaded successfully", file=sys.stderr)
+
+        print("Assigning model parameters...", file=sys.stderr)
         W1 = np.array(model_params['W1'])
         b1 = np.array(model_params['b1'])
         W2 = np.array(model_params['W2'])
         b2 = np.array(model_params['b2'])
-        print(f"W1 shape: {W1.shape}, b1 shape: {b1.shape}, W2 shape: {W2.shape}, b2 shape: {b2.shape}", file=sys.stderr)
+        print("Model parameters assigned successfully", file=sys.stderr)
+
+    except FileNotFoundError as e:
+        print(f"Error: Model file not found - {str(e)}", file=sys.stderr)
+        raise
+
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in model file - {str(e)}", file=sys.stderr)
+        raise
+
+    except KeyError as e:
+        print(f"Error: Missing key in model parameters - {str(e)}", file=sys.stderr)
+        raise
+
     except Exception as e:
         print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
-        print(f"Current directory contents: {os.listdir(current_dir)}", file=sys.stderr)
         raise
 
 # Load model parameters at module initialization
