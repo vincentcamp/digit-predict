@@ -4,6 +4,7 @@ const App = () => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [prediction, setPrediction] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -41,6 +42,7 @@ const App = () => {
     context.fillStyle = 'white';
     context.fillRect(0, 0, canvas.width, canvas.height);
     setPrediction(null);
+    setError(null);
   };
 
   const getImageData = () => {
@@ -65,6 +67,7 @@ const App = () => {
   const handlePredict = async () => {
     const imageData = getImageData();
     console.log("Image data prepared:", imageData.length, "pixels");
+    setError(null);
     
     try {
       console.log("Sending prediction request to:", '/api/predict');
@@ -92,16 +95,17 @@ const App = () => {
     } catch (error) {
       console.error("Prediction error:", error);
       console.error("Error stack:", error.stack);
-      alert("Error making prediction. Please check the console for details.");
+      setError(`Error making prediction: ${error.message}`);
     }    
   };
 
   const handleTrain = async () => {
     if (prediction === null) {
-      alert('Please predict first before training');
+      setError('Please predict first before training');
       return;
     }
     const imageData = getImageData();
+    setError(null);
     try {
       const response = await fetch('/api/train', {
         method: 'POST',
@@ -109,14 +113,15 @@ const App = () => {
         body: JSON.stringify({ image: imageData, label: prediction }),
       });
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
       const result = await response.json();
       alert(result.status);
       clearCanvas();
     } catch (error) {
       console.error("Training error:", error);
-      alert("Error training the model. Please try again.");
+      setError(`Error training the model: ${error.message}`);
     }
   };
 
@@ -163,6 +168,11 @@ const App = () => {
           Clear
         </button>
       </div>
+      {error && (
+        <div className="mt-4 text-red-500">
+          {error}
+        </div>
+      )}
     </div>
   );
 };
