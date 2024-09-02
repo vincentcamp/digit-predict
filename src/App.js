@@ -84,7 +84,7 @@ const App = () => {
         const errorText = await response.text();
         console.error("Error response body:", errorText);
         throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-      }
+      }    
       
       const result = await response.json();
       console.log("Prediction result:", result);
@@ -93,7 +93,7 @@ const App = () => {
       console.error("Prediction error:", error);
       console.error("Error stack:", error.stack);
       alert("Error making prediction. Please check the console for details.");
-    }
+    }    
   };
 
   const handleTrain = async () => {

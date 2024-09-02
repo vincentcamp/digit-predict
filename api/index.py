@@ -14,6 +14,10 @@ try:
     with open(model_path, 'r') as f:
         model_params = json.load(f)
     print("Model parameters loaded successfully", file=sys.stderr)
+except FileNotFoundError:
+    print(f"Error: Model file not found at {model_path}", file=sys.stderr)
+except json.JSONDecodeError:
+    print(f"Error: Invalid JSON format in {model_path}", file=sys.stderr)
 except Exception as e:
     print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
 
@@ -26,7 +30,7 @@ def ReLU(Z):
     return np.maximum(Z, 0)
 
 def softmax(Z):
-    A = np.exp(Z) / sum(np.exp(Z))
+    A = np.exp(Z) / np.sum(np.exp(Z))
     return A
 
 def forward_prop(W1, b1, W2, b2, X):
@@ -48,14 +52,14 @@ def one_hot(Y):
     return one_hot_Y
 
 def backward_prop(Z1, A1, Z2, A2, W1, W2, X, Y):
-    m = 1
+    m = X.shape[1]
     one_hot_Y = one_hot(Y)
     dZ2 = A2 - one_hot_Y
     dW2 = 1 / m * dZ2.dot(A1.T)
-    db2 = 1 / m * np.sum(dZ2)
+    db2 = 1 / m * np.sum(dZ2, axis=1, keepdims=True)
     dZ1 = W2.T.dot(dZ2) * ReLU_deriv(Z1)
     dW1 = 1 / m * dZ1.dot(X.T)
-    db1 = 1 / m * np.sum(dZ1)
+    db1 = 1 / m * np.sum(dZ1, axis=1, keepdims=True)
     return dW1, db1, dW2, db2
 
 def update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha):
@@ -82,38 +86,49 @@ def handler(event, context):
     log_memory_usage()
 
     try:
-        # Parse request body
-        body = json.loads(event['body'])
-        image_data = np.array(body['image']).reshape(784, 1) / 255.0
-        print("Received image data shape:", image_data.shape, file=sys.stderr)
+        if event['path'] == '/api/predict':
+            body = json.loads(event['body'])
+            image_data = np.array(body['image']).reshape(784, 1) / 255.0
 
-        print("Model parameters shapes:", W1.shape, b1.shape, W2.shape, b2.shape, file=sys.stderr)
+            Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
+            prediction = int(get_predictions(A2)[0])
 
-        # Forward propagation
-        Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
-        print("Forward propagation completed", file=sys.stderr)
-        
-        # Get prediction
-        prediction = int(get_predictions(A2)[0])
-        print("Prediction:", prediction, file=sys.stderr)
+            response = {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'prediction': prediction})
+            }
+            return response
 
-        log_memory_usage()
+        elif event['path'] == '/api/train':
+            body = json.loads(event['body'])
+            image_data = np.array(body['image']).reshape(784, 1) / 255.0
+            label = int(body['label'])
 
-        # Prepare response
-        headers = {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
-        }
-        
-        response = {
-            'statusCode': 200,
-            'headers': headers,
-            'body': json.dumps({'prediction': prediction})
-        }
-        print("Sending response:", response, file=sys.stderr)
-        return response
+            Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
+            dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, image_data, np.array([label]))
+
+            global W1, b1, W2, b2 
+            W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, 0.1)  # Adjust learning rate as needed
+
+            response = {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'status': 'Model trained on one sample'})
+            }
+            return response
+
+        else:
+            return {
+                'statusCode': 404,
+                'body': json.dumps({'error': 'Not Found'})
+            }
 
     except Exception as e:
         print("Error occurred:", str(e), file=sys.stderr)
@@ -132,7 +147,7 @@ class MockHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
-        event = {'body': post_data.decode('utf-8')}
+        event = {'body': post_data.decode('utf-8'), 'path': self.path}
         response = handler(event, None)
         
         self.send_response(response['statusCode'])
