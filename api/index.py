@@ -108,10 +108,10 @@ def handler(event, context):
             image_data = np.array(body['image']).reshape(784, 1) / 255.0
             label = int(body['label'])
 
+            global W1, b1, W2, b2 
+
             Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
             dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, image_data, np.array([label]))
-
-            global W1, b1, W2, b2 
             W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, 0.1)  # Adjust learning rate as needed
 
             response = {
