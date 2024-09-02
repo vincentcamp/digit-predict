@@ -64,10 +64,23 @@ def update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha):
     b2 = b2 - alpha * db2    
     return W1, b1, W2, b2
 
+def log_memory_usage():
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    memory_usage = memory_info.rss / 1024 / 1024  # Convert to MB
+    print(f"Current memory usage: {memory_usage:.2f} MB", file=sys.stderr)
+    
+    # Vercel's memory limit for serverless functions (adjust if needed)
+    memory_limit = 1024  # 1024 MB = 1 GB
+    if memory_usage > memory_limit * 0.9:  # Warning at 90% usage
+        print(f"WARNING: Approaching memory limit. Usage: {memory_usage:.2f} MB / {memory_limit} MB", file=sys.stderr)
+
 def handler(event, context):
     print("Received event:", json.dumps(event), file=sys.stderr)
     print("Current working directory:", os.getcwd(), file=sys.stderr)
     print("Contents of current directory:", os.listdir('.'), file=sys.stderr)
+
+    log_memory_usage()
 
     try:
         # Parse request body
@@ -85,15 +98,19 @@ def handler(event, context):
         prediction = int(get_predictions(A2)[0])
         print("Prediction:", prediction, file=sys.stderr)
 
+        log_memory_usage()
+
         # Prepare response
+        headers = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type'
+        }
+        
         response = {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
-            },
+            'headers': headers,
             'body': json.dumps({'prediction': prediction})
         }
         print("Sending response:", response, file=sys.stderr)
@@ -102,30 +119,30 @@ def handler(event, context):
     except Exception as e:
         print("Error occurred:", str(e), file=sys.stderr)
         print("Error traceback:", traceback.format_exc(), file=sys.stderr)
+        log_memory_usage()
         return {
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({'error': str(e), 'traceback': traceback.format_exc()})
         }
 
-# This part is for local testing and won't be used by Vercel
-if __name__ == "__main__":
-    class MockHandler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            event = {'body': post_data.decode('utf-8')}
-            response = handler(event, None)
-            
-            self.send_response(response['statusCode'])
-            for key, value in response['headers'].items():
-                self.send_header(key, value)
-            self.end_headers()
-            self.wfile.write(response['body'].encode('utf-8'))
+class MockHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        event = {'body': post_data.decode('utf-8')}
+        response = handler(event, None)
+        
+        self.send_response(response['statusCode'])
+        for key, value in response['headers'].items():
+            self.send_header(key, value)
+        self.end_headers()
+        self.wfile.write(response['body'].encode('utf-8'))
 
+if __name__ == "__main__":
     from http.server import HTTPServer
     server = HTTPServer(('localhost', 8000), MockHandler)
     print('Starting server on http://localhost:8000')

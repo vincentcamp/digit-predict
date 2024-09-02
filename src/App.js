@@ -47,13 +47,20 @@ const App = () => {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d', { willReadFrequently: true });
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const grayscaleData = new Array(canvas.width * canvas.height);
-    for (let i = 0; i < imageData.data.length; i += 4) {
-      const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
-      grayscaleData[i/4] = avg;
+    const resizedData = new Array(28 * 28);
+    const stepSize = canvas.width / 28;
+  
+    for (let y = 0; y < 28; y++) {
+      for (let x = 0; x < 28; x++) {
+        const sourcePosX = Math.floor(x * stepSize);
+        const sourcePosY = Math.floor(y * stepSize);
+        const index = (sourcePosY * canvas.width + sourcePosX) * 4;
+        const avg = (imageData.data[index] + imageData.data[index + 1] + imageData.data[index + 2]) / 3;
+        resizedData[y * 28 + x] = avg / 255; // Normalize to 0-1
+      }
     }
-    return grayscaleData;
-  };
+    return resizedData;
+  };  
 
   const handlePredict = async () => {
     const imageData = getImageData();
