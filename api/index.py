@@ -2,7 +2,6 @@ import json
 import numpy as np
 import sys
 import os
-import resource
 import traceback
 
 # Global variable declarations
@@ -24,15 +23,6 @@ def load_model_parameters():
         b1 = np.array(model_params['b1'])
         W2 = np.array(model_params['W2'])
         b2 = np.array(model_params['b2'])
-    except FileNotFoundError:
-        print(f"Error: Model file not found at {model_path}", file=sys.stderr)
-        raise
-    except json.JSONDecodeError:
-        print(f"Error: Invalid JSON format in {model_path}", file=sys.stderr)
-        raise
-    except KeyError as e:
-        print(f"Error: Missing key in model parameters: {str(e)}", file=sys.stderr)
-        raise
     except Exception as e:
         print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
         raise
@@ -57,57 +47,16 @@ def forward_prop(W1, b1, W2, b2, X):
 def get_predictions(A2):
     return np.argmax(A2, 0)
 
-def ReLU_deriv(Z):
-    return Z > 0
-
-def one_hot(Y):
-    one_hot_Y = np.zeros((10, 1))
-    one_hot_Y[Y] = 1
-    return one_hot_Y
-
-def backward_prop(Z1, A1, Z2, A2, W1, W2, X, Y):
-    m = X.shape[1]
-    one_hot_Y = one_hot(Y)
-    dZ2 = A2 - one_hot_Y
-    dW2 = 1 / m * dZ2.dot(A1.T)
-    db2 = 1 / m * np.sum(dZ2, axis=1, keepdims=True)
-    dZ1 = W2.T.dot(dZ2) * ReLU_deriv(Z1)
-    dW1 = 1 / m * dZ1.dot(X.T)
-    db1 = 1 / m * np.sum(dZ1, axis=1, keepdims=True)
-    return dW1, db1, dW2, db2
-
-def update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha):
-    W1 = W1 - alpha * dW1
-    b1 = b1 - alpha * db1    
-    W2 = W2 - alpha * dW2  
-    b2 = b2 - alpha * db2    
-    return W1, b1, W2, b2
-
-def log_memory_usage():
-    memory_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024  # Convert to MB
-    print(f"Current memory usage: {memory_usage:.2f} MB", file=sys.stderr)
-    
-    memory_limit = 1024  # 1024 MB = 1 GB
-    if memory_usage > memory_limit * 0.9:  # Warning at 90% usage
-        print(f"WARNING: Approaching memory limit. Usage: {memory_usage:.2f} MB / {memory_limit} MB", file=sys.stderr)
-
 def handler(event, context):
-    global W1, b1, W2, b2
-    print("Received event:", json.dumps(event), file=sys.stderr)
-    print("Current working directory:", os.getcwd(), file=sys.stderr)
-    print("Contents of current directory:", os.listdir('.'), file=sys.stderr)
-
-    log_memory_usage()
-
     try:
-        if event['path'] == '/api/predict':
+        if event['httpMethod'] == 'POST' and event['path'] == '/api/predict':
             body = json.loads(event['body'])
             image_data = np.array(body['image']).reshape(784, 1) / 255.0
 
             Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
             prediction = int(get_predictions(A2)[0])
 
-            response = {
+            return {
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
@@ -115,37 +64,14 @@ def handler(event, context):
                 },
                 'body': json.dumps({'prediction': prediction})
             }
-            return response
-
-        elif event['path'] == '/api/train':
-            body = json.loads(event['body'])
-            image_data = np.array(body['image']).reshape(784, 1) / 255.0
-            label = int(body['label'])
-
-            Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
-            dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, image_data, np.array([label]))
-            W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, 0.1)  # Adjust learning rate as needed
-
-            response = {
-                'statusCode': 200,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': json.dumps({'status': 'Model trained on one sample'})
-            }
-            return response
-
         else:
             return {
                 'statusCode': 404,
                 'body': json.dumps({'error': 'Not Found'})
             }
-
     except Exception as e:
-        print("Error occurred:", str(e), file=sys.stderr)
-        print("Error traceback:", traceback.format_exc(), file=sys.stderr)
-        log_memory_usage()
+        print(f"Error occurred: {str(e)}", file=sys.stderr)
+        print(f"Error traceback: {traceback.format_exc()}", file=sys.stderr)
         return {
             'statusCode': 500,
             'headers': {
@@ -155,23 +81,14 @@ def handler(event, context):
             'body': json.dumps({'error': str(e), 'traceback': traceback.format_exc()})
         }
 
-# For local testing
+# This is only used for local testing
 if __name__ == "__main__":
-    from http.server import HTTPServer, BaseHTTPRequestHandler
-
-    class MockHandler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            event = {'body': post_data.decode('utf-8'), 'path': self.path}
-            response = handler(event, None)
-            
-            self.send_response(response['statusCode'])
-            for key, value in response['headers'].items():
-                self.send_header(key, value)
-            self.end_headers()
-            self.wfile.write(response['body'].encode('utf-8'))
-
-    server = HTTPServer(('localhost', 8000), MockHandler)
-    print('Starting server on http://localhost:8000')
-    server.serve_forever()
+    # Simulate a Vercel serverless environment event
+    test_event = {
+        'httpMethod': 'POST',
+        'path': '/api/predict',
+        'body': json.dumps({
+            'image': [0] * 784  # Replace with actual test data
+        })
+    }
+    print(handler(test_event, None))
