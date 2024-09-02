@@ -24,15 +24,6 @@ def load_model_parameters():
         b1 = np.array(model_params['b1'])
         W2 = np.array(model_params['W2'])
         b2 = np.array(model_params['b2'])
-    except FileNotFoundError:
-        print(f"Error: Model file not found at {model_path}", file=sys.stderr)
-        raise
-    except json.JSONDecodeError:
-        print(f"Error: Invalid JSON format in {model_path}", file=sys.stderr)
-        raise
-    except KeyError as e:
-        print(f"Error: Missing key in model parameters: {str(e)}", file=sys.stderr)
-        raise
     except Exception as e:
         print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
         raise
@@ -92,22 +83,16 @@ def log_memory_usage():
         print(f"WARNING: Approaching memory limit. Usage: {memory_usage:.2f} MB / {memory_limit} MB", file=sys.stderr)
 
 def handler(event, context):
-    global W1, b1, W2, b2
-    print("Received event:", json.dumps(event), file=sys.stderr)
-    print("Current working directory:", os.getcwd(), file=sys.stderr)
-    print("Contents of current directory:", os.listdir('.'), file=sys.stderr)
-
-    log_memory_usage()
-
+    print("Received event:", event, file=sys.stderr)
     try:
-        if event['path'] == '/api/predict':
-            body = json.loads(event['body'])
+        if event.get('httpMethod') == 'POST' and event.get('path') == '/api/predict':
+            body = json.loads(event.get('body', '{}'))
             image_data = np.array(body['image']).reshape(784, 1) / 255.0
 
             Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
             prediction = int(get_predictions(A2)[0])
 
-            response = {
+            return {
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
@@ -115,18 +100,17 @@ def handler(event, context):
                 },
                 'body': json.dumps({'prediction': prediction})
             }
-            return response
-
-        elif event['path'] == '/api/train':
-            body = json.loads(event['body'])
+        elif event.get('httpMethod') == 'POST' and event.get('path') == '/api/train':
+            body = json.loads(event.get('body', '{}'))
             image_data = np.array(body['image']).reshape(784, 1) / 255.0
             label = int(body['label'])
 
             Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
             dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, image_data, np.array([label]))
-            W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, 0.1)  # Adjust learning rate as needed
+            global W1, b1, W2, b2
+            W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, 0.1)
 
-            response = {
+            return {
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
@@ -134,18 +118,14 @@ def handler(event, context):
                 },
                 'body': json.dumps({'status': 'Model trained on one sample'})
             }
-            return response
-
         else:
             return {
                 'statusCode': 404,
                 'body': json.dumps({'error': 'Not Found'})
             }
-
     except Exception as e:
-        print("Error occurred:", str(e), file=sys.stderr)
-        print("Error traceback:", traceback.format_exc(), file=sys.stderr)
-        log_memory_usage()
+        print(f"Error occurred: {str(e)}", file=sys.stderr)
+        print(f"Error traceback: {traceback.format_exc()}", file=sys.stderr)
         return {
             'statusCode': 500,
             'headers': {
@@ -155,7 +135,11 @@ def handler(event, context):
             'body': json.dumps({'error': str(e), 'traceback': traceback.format_exc()})
         }
 
-# For local testing
+# This is the entry point for Vercel
+def run(event, context):
+    return handler(event, context)
+
+# This is for local testing
 if __name__ == "__main__":
     from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -163,9 +147,9 @@ if __name__ == "__main__":
         def do_POST(self):
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
-            event = {'body': post_data.decode('utf-8'), 'path': self.path}
+            event = {'body': post_data.decode('utf-8'), 'path': self.path, 'httpMethod': 'POST'}
             response = handler(event, None)
-            
+
             self.send_response(response['statusCode'])
             for key, value in response['headers'].items():
                 self.send_header(key, value)
