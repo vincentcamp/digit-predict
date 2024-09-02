@@ -4,7 +4,6 @@ const App = () => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [prediction, setPrediction] = useState(null);
-  const [trainingLabel, setTrainingLabel] = useState('');
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -60,20 +59,19 @@ const App = () => {
   };
 
   const handleTrain = async () => {
-    if (!trainingLabel) {
-      alert('Please enter a label for training');
+    if (prediction === null) {
+      alert('Please predict first before training');
       return;
     }
     const imageData = getImageData();
     const response = await fetch('/api/train', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: imageData, label: parseInt(trainingLabel, 10) }),
+      body: JSON.stringify({ image: imageData, label: prediction }),
     });
     const result = await response.json();
     alert(result.status);
     clearCanvas();
-    setTrainingLabel('');
   };
 
   return (
@@ -97,6 +95,12 @@ const App = () => {
           Predict
         </button>
         <button
+          onClick={handleTrain}
+          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+        >
+          Train
+        </button>
+        <button
           onClick={clearCanvas}
           className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
         >
@@ -108,23 +112,6 @@ const App = () => {
           Prediction: {prediction}
         </div>
       )}
-      <div className="mt-4 space-x-4">
-        <input
-          type="number"
-          min="0"
-          max="9"
-          value={trainingLabel}
-          onChange={(e) => setTrainingLabel(e.target.value)}
-          placeholder="Enter digit (0-9)"
-          className="px-2 py-1 border border-gray-300 rounded"
-        />
-        <button
-          onClick={handleTrain}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-        >
-          Train
-        </button>
-      </div>
     </div>
   );
 };
