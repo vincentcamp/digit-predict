@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 const App = () => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -70,10 +72,10 @@ const App = () => {
     setError(null);
     
     try {
-      console.log("Sending prediction request to:", '/api/predict');
+      console.log("Sending prediction request to:", `${API_URL}/api/predict`);
       console.log("Request payload:", JSON.stringify({ image: imageData }));
       
-      const response = await fetch('/api/predict', {
+      const response = await fetch(`${API_URL}/api/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageData }),
@@ -107,7 +109,7 @@ const App = () => {
     const imageData = getImageData();
     setError(null);
     try {
-      const response = await fetch('/api/train', {
+      const response = await fetch(`${API_URL}/api/train`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageData, label: prediction }),
