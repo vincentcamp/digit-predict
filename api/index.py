@@ -5,7 +5,7 @@ import os
 import resource
 import traceback
 
-# Global variable declarations
+global W1, b1, W2, b2
 W1 = None
 b1 = None
 W2 = None
@@ -17,6 +17,7 @@ def load_model_parameters():
     model_path = os.path.join(current_dir, 'digit_recognizer_model.json')
 
     try:
+        print(f"Attempting to load model from: {model_path}", file=sys.stderr)
         with open(model_path, 'r') as f:
             model_params = json.load(f)
         print("Model parameters loaded successfully", file=sys.stderr)
@@ -24,8 +25,10 @@ def load_model_parameters():
         b1 = np.array(model_params['b1'])
         W2 = np.array(model_params['W2'])
         b2 = np.array(model_params['b2'])
+        print(f"W1 shape: {W1.shape}, b1 shape: {b1.shape}, W2 shape: {W2.shape}, b2 shape: {b2.shape}", file=sys.stderr)
     except Exception as e:
         print(f"Error loading model parameters: {str(e)}", file=sys.stderr)
+        print(f"Current directory contents: {os.listdir(current_dir)}", file=sys.stderr)
         raise
 
 # Load model parameters at module initialization
