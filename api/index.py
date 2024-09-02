@@ -87,6 +87,9 @@ def handler(event, context):
 
     try:
         if event['path'] == '/api/predict':
+            # Declare global variables
+            global W1, b1, W2, b2
+
             body = json.loads(event['body'])
             image_data = np.array(body['image']).reshape(784, 1) / 255.0
 
@@ -104,11 +107,12 @@ def handler(event, context):
             return response
 
         elif event['path'] == '/api/train':
+            # Declare global variables
+            global W1, b1, W2, b2
+
             body = json.loads(event['body'])
             image_data = np.array(body['image']).reshape(784, 1) / 255.0
             label = int(body['label'])
-
-            global W1, b1, W2, b2 
 
             Z1, A1, Z2, A2 = forward_prop(W1, b1, W2, b2, image_data)
             dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, image_data, np.array([label]))
